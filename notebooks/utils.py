@@ -13,7 +13,7 @@ def date_for_commit(commit_hash):
 
 
 class Quizzes:
-    QUIZ_DIR = Path('../../quizzes')
+    QUIZ_DIR = Path('~/rust-book/quizzes')
     quizzes = {}
 
     def get(self, row):

@@ -5,16 +5,39 @@ from pathlib import Path
 from datetime import datetime
 import subprocess as sp
 import bisect
+import traceback
+import ujson
+import hashlib
+
+QUIZ_DIR = Path('~/rust-book/quizzes').expanduser()
 
 
 def date_for_commit(commit_hash):
-    date_str = sp.check_output(['git', 'show', '-s', '--format=%ci', commit_hash]).decode('utf-8').strip()
+    date_str = sp.check_output(['git', 'show', '-s', '--format=%ci', commit_hash], cwd=QUIZ_DIR).decode('utf-8').strip()
     return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S %z')            
 
 
+def load_schema(name, commit_hash):
+    quiz_path = f'quizzes/{name}.toml'
+    schema_str = sp.check_output(['git', 'show', f'{commit_hash}:{quiz_path}'], cwd=QUIZ_DIR).decode('utf-8')
+    return tomlkit.loads(schema_str)
+
+
+def clean_for_hash(schema):
+    keys = ['id', 'type', 'prompt', 'answer']
+    return [{k: q[k] for k in keys if k in q} for q in schema['questions']]
+
+
+def hash_schema(schema):
+    clean_schema = ujson.dumps(clean_for_hash(schema), sort_keys=True, default=str)
+    dhash = hashlib.md5()
+    dhash.update(clean_schema.encode())
+    return dhash.hexdigest()
+
+
 class Quizzes:
-    QUIZ_DIR = Path('~/rust-book/quizzes')
     quizzes = {}
+    hashes = {}
 
     def get(self, row):
         name = row.quizName
@@ -24,22 +47,19 @@ class Quizzes:
                 'dates': []
             }
         versions = self.quizzes[name]
-        
-        content_hash = row.quizHash
+
         commit_hash = row.commitHash.strip()
+        key = (name, commit_hash)
+        if key not in self.hashes:
+            schema = load_schema(name, commit_hash)
+            self.hashes[key] = hash_schema(schema)
+        content_hash = self.hashes[key]
+
         if content_hash not in versions['schemas']:
-            full_path = self.QUIZ_DIR / (name + '.toml')
-
-            try:
-                date = date_for_commit(commit_hash)
-                bisect.insort(versions['dates'], date)
-                version = versions['dates'].index(date)
-
-                schema_str = sp.check_output(['git', 'show', f'{commit_hash}:{full_path}']).decode('utf-8')
-                schema = tomlkit.loads(schema_str)
-                versions['schemas'][content_hash] = {'version': version, 'schema': schema}
-            except Exception:
-                print(f'Could not parse: {name} for {commit_hash}')
+            date = date_for_commit(commit_hash)
+            bisect.insort(versions['dates'], date)
+            version = versions['dates'].index(date)
+            versions['schemas'][content_hash] = {'version': version, 'schema': schema}
 
         return versions['schemas'][content_hash]
 
@@ -60,12 +80,26 @@ def load_log(name):
     return pd.DataFrame(entries)
 
 
+def patch_tracing_answers(answers_flat, quizzes):
+    correct_v2 = []
+    for _, row in answers_flat.iterrows():
+        quiz = quizzes.get(row)['schema']
+        question = quiz['questions'][row['question']]
+        if question['type'] == 'Tracing' and not question['answer']['doesCompile']:
+            correct = not row['answer']['doesCompile']
+        else:
+            correct = row['correct']
+        correct_v2.append(correct)
+    answers_flat['correct_v2'] = correct_v2
+
 
 def load_latest_answers():
+    print('Loading answers.log...')
     answers = load_log('answers')
     quizzes = Quizzes()
 
     # Load in all quiz data and get version metadata
+    print('Loading quizzes...')
     for _, row in answers.iterrows():
         quizzes.get(row)    
 
@@ -96,11 +130,16 @@ def load_latest_answers():
 
     answers_flat = []
     for _, response in answers.iterrows():
+        quiz = quizzes.get(response)['schema']
         for i, ans in enumerate(response.answers):
-            row = {**response, **ans, 'question': i}
+            explanation = ans['answer'].pop('explanation', ans.pop('explanation', None))
+            row = {**response, **ans, 'explanation': explanation, 'question': i, 'id': quiz['questions'][i].get('id', None)}
             del row['answers']
             answers_flat.append(row)
 
     answers_flat = pd.DataFrame(answers_flat)
+    patch_tracing_answers(answers_flat, quizzes)
+
+    print('Loaded!')
 
     return answers, answers_flat, quizzes

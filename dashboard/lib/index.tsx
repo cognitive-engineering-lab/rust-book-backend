@@ -8,7 +8,7 @@ import DataGrid, {
 import { Range, createSliderWithTooltip } from "rc-slider";
 import { action } from "mobx";
 import { observer, useLocalObservable } from "mobx-react";
-import { AnswerView, getQuestionMethods } from "@wcrichto/mdbook-quiz";
+import { AnswerView, getQuestionMethods } from "@wcrichto/quiz";
 import hljs from "highlight.js";
 import _ from "lodash";
 import objectHash from "object-hash";
@@ -21,7 +21,10 @@ declare global {
   var QUESTION_SUMMARY: string;
   var QUIZ_SUMMARY: string;
   var QUIZ_SCHEMAS: string;
-  var hljs: any;
+
+  interface Window {
+      hljs: any;
+  }
 }
 
 window.hljs = hljs;

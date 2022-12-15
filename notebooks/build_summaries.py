@@ -20,7 +20,8 @@ def main():
                 'N': len(ser),
                 **{k: df[~df[metric]][k] for k in extra}
             }])
-        return g.apply(ci).reset_index().drop(columns=[f'level_{len(groups)}'])
+        df2 = g.apply(ci).reset_index().drop(columns=[f'level_{len(groups)}'])
+        return df2.groupby(list(set(groups) - {'version'})).apply(lambda df: df.iloc[df.version.argmax()]).reset_index(drop=True)
 
     def normal_estimator(ser):
         mu = ser.mean()
@@ -37,7 +38,7 @@ def main():
     questionSummary = summarize(
         answers_flat, 
         ['quizName', 'version', 'question'], 
-        'correct', 
+        'correct_v2', 
         lambda ser: proportion_confint(ser.sum(), len(ser)),
         ['answer'])
 

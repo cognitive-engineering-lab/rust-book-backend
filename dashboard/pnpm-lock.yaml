@@ -9,7 +9,7 @@ specifiers:
   axios: ^0.27.2
   esbuild: ^0.15.5
   esbuild-sass-plugin: ^2.3.2
-  highlight.js: ^11.6.0
+  highlight.js: 10.1.1
   lodash: ^4.17.21
   mobx: ^6.6.1
   mobx-react: ^7.5.2
@@ -32,7 +32,7 @@ devDependencies:
   '@types/react-dom': 18.0.6
   axios: 0.27.2
   esbuild: 0.15.5
-  highlight.js: 11.6.0
+  highlight.js: 10.1.1
   lodash: 4.17.21
   mobx: 6.6.1
   mobx-react: 7.5.2_m26jawr67gnusmh4egzqtnhxru
@@ -975,9 +975,9 @@ packages:
       function-bind: 1.1.1
     dev: false
 
-  /highlight.js/11.6.0:
-    resolution: {integrity: sha512-ig1eqDzJaB0pqEvlPVIpSSyMaO92bH1N2rJpLMN/nX396wTpDA4Eq0uK+7I/2XG17pFaaKE0kjV/XPeGt7Evjw==}
-    engines: {node: '>=12.0.0'}
+  /highlight.js/10.1.1:
+    resolution: {integrity: sha512-b4L09127uVa+9vkMgPpdUQP78ickGbHEQTWeBrQFTJZ4/n2aihWOGS0ZoUqAwjVmfjhq/C76HRzkqwZhK4sBbg==}
+    deprecated: Potential vulnerability. Upgrade to @latest
     dev: true
 
   /https-proxy-agent/5.0.1:

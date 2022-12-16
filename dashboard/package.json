@@ -23,7 +23,6 @@
         "typescript": "^4.7.4"
     },
     "dependencies": {
-        "@wcrichto/mdbook-quiz": "^0.1.3",
         "@wcrichto/quiz": "^0.2.10",
         "@wcrichto/quiz-embed": "^0.1.0",
         "esbuild-sass-plugin": "^2.3.2"

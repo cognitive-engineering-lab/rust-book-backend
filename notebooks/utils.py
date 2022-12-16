@@ -1,15 +1,13 @@
-import tomlkit
 import pandas as pd
-import json
 from pathlib import Path
 from datetime import datetime
 import subprocess as sp
-import bisect
-import traceback
 import ujson
-import hashlib
 import sqlite3
 import zlib
+
+import rs_utils
+
 
 QUIZ_DIR = Path('~/rust-book/quizzes').expanduser()
 LOG_PATH = Path('../server/log.sqlite').resolve()
@@ -18,53 +16,6 @@ LOG_PATH = Path('../server/log.sqlite').resolve()
 def date_for_commit(commit_hash):
     date_str = sp.check_output(['git', 'show', '-s', '--format=%ci', commit_hash], cwd=QUIZ_DIR).decode('utf-8').strip()
     return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S %z')            
-
-
-def load_schema(name, commit_hash):
-    quiz_path = f'quizzes/{name}.toml'
-    schema_str = sp.check_output(['git', 'show', f'{commit_hash}:{quiz_path}'], cwd=QUIZ_DIR).decode('utf-8')
-    return tomlkit.loads(schema_str)
-
-
-def clean_for_hash(schema):
-    keys = ['id', 'type', 'prompt', 'answer']
-    return [{k: q[k] for k in keys if k in q} for q in schema['questions']]
-
-
-def hash_schema(schema):
-    clean_schema = ujson.dumps(clean_for_hash(schema), sort_keys=True, default=str)
-    dhash = hashlib.md5()
-    dhash.update(clean_schema.encode())
-    return dhash.hexdigest()
-
-
-class Quizzes:
-    quizzes = {}
-    hashes = {}
-
-    def get(self, row):
-        name = row.quizName
-        if name not in self.quizzes:
-            self.quizzes[name] = {
-                'schemas': {},
-                'dates': []
-            }
-        versions = self.quizzes[name]
-
-        commit_hash = row.commitHash.strip()
-        key = (name, commit_hash)
-        if key not in self.hashes:
-            schema = load_schema(name, commit_hash)
-            self.hashes[key] = hash_schema(schema)
-        content_hash = self.hashes[key]
-
-        if content_hash not in versions['schemas']:
-            date = date_for_commit(commit_hash)
-            bisect.insort(versions['dates'], date)
-            version = versions['dates'].index(date)
-            versions['schemas'][content_hash] = {'version': version, 'schema': schema}
-
-        return versions['schemas'][content_hash]
 
 
 def load_log(name):
@@ -85,7 +36,7 @@ def load_log(name):
 def patch_tracing_answers(answers_flat, quizzes):
     correct_v2 = []
     for _, row in answers_flat.iterrows():
-        quiz = quizzes.get(row)['schema']
+        quiz = quizzes.schema(row.quizName, row.commitHash)
         question = quiz['questions'][row['question']]
         if question['type'] == 'Tracing' and not question['answer']['doesCompile']:
             correct = not row['answer']['doesCompile']
@@ -96,17 +47,18 @@ def patch_tracing_answers(answers_flat, quizzes):
 
 
 def load_latest_answers():
-    print('Loading answers.log...')
+    print('Loading answers...')
     answers = load_log('answers')
-    quizzes = Quizzes()
+    answers['commitHash'] = answers.commitHash.map(lambda s: s.strip())
 
     # Load in all quiz data and get version metadata
     print('Loading quizzes...')
-    for _, row in answers.iterrows():
-        quizzes.get(row)    
+    quiz_params = [(row.quizName, row.commitHash) for _, row in answers.iterrows()]
+    quizzes = rs_utils.Quizzes(quiz_params)
 
     # Convert hashes to version numbers
-    answers['version'] = answers.apply(lambda row: quizzes.get(row)['version'], axis=1)
+    print("Postprocessing data...")
+    answers['version'] = answers.apply(lambda row: quizzes.version(row.quizName, row.commitHash), axis=1)
 
     # Convert UTC timestamp to datetime
     answers['timestamp'] = pd.to_datetime(answers['timestamp'], unit='ms')
@@ -119,7 +71,7 @@ def load_latest_answers():
 
     # Only keep the latest complete answer for a given user/quiz pair
     get_latest = lambda group: group.iloc[group.timestamp.argmax()]
-    did_complete_quiz = lambda row: len(row.answers) == len(quizzes.get(row)['schema']['questions'])
+    did_complete_quiz = lambda row: len(row.answers) == len(quizzes.schema(row.quizName, row.commitHash)['questions'])
     groups = ['sessionId', 'quizName', 'quizHash']
     answers = answers \
         .loc[lambda df: df.apply(did_complete_quiz, axis=1)] \
@@ -132,7 +84,7 @@ def load_latest_answers():
 
     answers_flat = []
     for _, response in answers.iterrows():
-        quiz = quizzes.get(response)['schema']
+        quiz = quizzes.schema(response.quizName, response.commitHash)
         for i, ans in enumerate(response.answers):
             explanation = ans['answer'].pop('explanation', ans.pop('explanation', None))
             row = {**response, **ans, 'explanation': explanation, 'question': i, 'id': quiz['questions'][i].get('id', None)}

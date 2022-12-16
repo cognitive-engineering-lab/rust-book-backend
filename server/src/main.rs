@@ -1,33 +1,32 @@
-use rocket::{
-  serde::json::{Json, Value},
-  State,
-};
+#![feature(decl_macro)]
+use anyhow::{bail, Result};
+use flate2::{write::ZlibEncoder, Compression};
+use std::io::{Read, Write};
 
-mod cors;
-mod logs;
-
-#[rocket::post("/answers", format = "json", data = "<data>")]
-fn answers(data: Json<Value>, logs: &State<logs::LogFiles>) -> &'static str {
-  logs.append("answers.log", &data.to_string()).unwrap();
-  "success"
+fn encode(buf: Vec<u8>) -> Result<Vec<u8>> {
+  let mut enc = ZlibEncoder::new(Vec::new(), Compression::best());
+  enc.write_all(&buf)?;
+  Ok(enc.finish()?)
 }
 
-#[rocket::post("/bug", format = "json", data = "<data>")]
-fn bug(data: Json<Value>, logs: &State<logs::LogFiles>) -> &'static str {
-  logs.append("bug.log", &data.to_string()).unwrap();
-  "success"
-}
+#[rocket_contrib::database("logs")]
+struct Logs(rocket_contrib::databases::rusqlite::Connection);
 
-#[rocket::post("/feedback", format = "json", data = "<data>")]
-fn feedback(data: Json<Value>, logs: &State<logs::LogFiles>) -> &'static str {
-  logs.append("feedback.log", &data.to_string()).unwrap();
-  "success"
-}
+const TABLES: &[&str] = &["answers", "bug", "feedback", "runtime_error"];
 
-#[rocket::post("/runtime-error", format = "json", data = "<data>")]
-fn runtime_error(data: Json<Value>, logs: &State<logs::LogFiles>) -> &'static str {
-  logs.append("runtime-error.log", &data.to_string()).unwrap();
-  "success"
+#[rocket::post("/logs/<table>", format = "json", data = "<data>")]
+fn log(logs: Logs, table: String, data: rocket::Data) -> Result<&'static str> {
+  if !TABLES.contains(&table.as_str()) {
+    bail!("Invalid table: {table}");
+  }
+
+  let mut buf = Vec::new();
+  data.open().read_to_end(&mut buf)?;
+  let encoded = encode(buf)?;
+
+  let cmd = format!("INSERT INTO {table} (data) VALUES (?1)");
+  logs.execute(&cmd, &[&encoded])?;
+  Ok("success")
 }
 
 #[rocket::get("/")]
@@ -35,10 +34,17 @@ fn index() -> &'static str {
   "MIND OVER COMPUTER"
 }
 
-#[rocket::launch]
-fn rocket() -> _ {
-  rocket::build()
-    .attach(cors::CORS)
-    .manage(logs::LogFiles::new(vec!["answers.log", "bug.log", "feedback.log", "runtime-error.log"]))
-    .mount("/", rocket::routes![index, answers, bug, feedback, runtime_error, cors::all_options])
+fn main() {
+  let r = rocket::ignite()
+    .attach(rocket_cors::Cors::from_options(&Default::default()).unwrap())
+    .attach(Logs::fairing())
+    .mount("/", rocket::routes![index, log]);
+
+  let logs = Logs::get_one(&r).unwrap();
+  for t in TABLES {
+    let cmd = format!("CREATE TABLE IF NOT EXISTS {t} (id INTEGER PRIMARY KEY, data BLOB)");
+    logs.execute(&cmd, &[]).unwrap();
+  }
+
+  r.launch();
 }

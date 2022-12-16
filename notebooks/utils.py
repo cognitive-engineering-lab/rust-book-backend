@@ -8,8 +8,11 @@ import bisect
 import traceback
 import ujson
 import hashlib
+import sqlite3
+import zlib
 
 QUIZ_DIR = Path('~/rust-book/quizzes').expanduser()
+LOG_PATH = Path('../server/log.sqlite').resolve()
 
 
 def date_for_commit(commit_hash):
@@ -65,19 +68,18 @@ class Quizzes:
 
 
 def load_log(name):
-    with open(f'../server/{name}.log', 'r') as f:
-        log = f.readlines()
+    logs = sqlite3.connect(f'file:{LOG_PATH}?mode=ro', uri=True)
 
-    entries = []
-    for line in log:
-        try:
-            obj = json.loads(line)
-            payload = obj.pop('payload')
-            entries.append({**obj, **payload})
-        except Exception:
-            print(f'Failed to load: {line}')
+    def load(row):
+        (data_bytes,) = row
+        data_str = zlib.decompress(data_bytes)
+        obj = ujson.loads(data_str)
+        payload = obj.pop('payload')
+        return {**obj, **payload}
 
-    return pd.DataFrame(entries)
+    cursor = logs.execute(f'SELECT data FROM {name}')
+    rows = [load(row) for row in cursor]
+    return pd.DataFrame(rows)
 
 
 def patch_tracing_answers(answers_flat, quizzes):

@@ -6,6 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rocket = {version = "0.5.0-rc.2", features = ["json"]}
+rocket = {version = "0.4.11", default-features = false}
+rocket_contrib = { version = "0.4.11", default-features = false, features = ["sqlite_pool", "json"]}
+rocket_cors = "0.5.1"
+flate2 = "1.0.25"
 serde_json = "1"
 anyhow = "1"

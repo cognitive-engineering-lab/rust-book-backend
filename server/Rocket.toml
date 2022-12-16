@@ -1,0 +1,5 @@
+[global]
+port = 8000
+
+[global.databases]
+logs = { url = "log.sqlite" }

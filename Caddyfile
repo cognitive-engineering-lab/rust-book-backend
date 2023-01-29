@@ -1,5 +1,8 @@
 rust-book.willcrichton.net
 
+handle_path /rust-experiments/* {
+  reverse_proxy :8001
+}
 reverse_proxy :8000
 
 log {

@@ -39,7 +39,11 @@ def patch_tracing_answers(answers_flat, quizzes):
         quiz = quizzes.schema(row.quizName, row.commitHash)
         question = quiz['questions'][row['question']]
         if question['type'] == 'Tracing' and not question['answer']['doesCompile']:
-            correct = not row['answer']['doesCompile']
+            try:
+                correct = not row['answer']['doesCompile']
+            except Exception:
+                print('Issue with:', row)
+                correct = True
         else:
             correct = row['correct']
         correct_v2.append(correct)
@@ -47,13 +51,22 @@ def patch_tracing_answers(answers_flat, quizzes):
 
 
 def load_latest_answers():
+    sp.check_call(['git', 'pull'], cwd=QUIZ_DIR)
+
     print('Loading answers...')
     answers = load_log('answers')
     answers['commitHash'] = answers.commitHash.map(lambda s: s.strip())
 
+    # Mini-hack: ran into some impossible data where quizzes were coming from a commit hash
+    # when they didn't exist. Probably a stale telemetry script? For now, just filtering
+    # those data points and hope it doesn't happen again.
+    answers = answers[~((answers.commitHash == "319eb49a14caec76daf4975f91c72fa00d319a2b") &
+                        answers.quizName.str.startswith("ch13-01-closures"))];
+
     # Load in all quiz data and get version metadata
     print('Loading quizzes...')
     quiz_params = [(row.quizName, row.commitHash) for _, row in answers.iterrows()]
+
     quizzes = rs_utils.Quizzes(quiz_params)
 
     # Convert hashes to version numbers

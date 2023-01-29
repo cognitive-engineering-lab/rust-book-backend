@@ -22,7 +22,7 @@ def main():
             }])
         df2 = g.apply(ci).reset_index().drop(columns=[f'level_{len(groups)}'])
         return df2.groupby(list(set(groups) - {'version'})).apply(lambda df: df.iloc[df.version.argmax()]).reset_index(drop=True)
-
+ 
     def normal_estimator(ser):
         mu = ser.mean()
         sigma = ser.sem()
@@ -42,9 +42,21 @@ def main():
         lambda ser: proportion_confint(ser.sum(), len(ser)),
         ['answer'])
 
+    explanations = answers_flat[answers_flat.explanation.notnull()] \
+        .groupby(['quizName', 'version', 'question']) \
+        .apply(lambda group: group.explanation.tolist()) \
+        .rename("explanations") \
+        .reset_index()
+
     quizSummary.to_json('data/quiz-summary.json', orient="records")
     questionSummary.to_json('data/question-summary.json', orient="records")
-    quiz_clean = {k: v['schemas'] for k, v in quizzes.quizzes.items()}
+    explanations.to_json('data/explanations.json', orient="records")
+    quiz_clean = {}
+    for _, row in answers.iterrows():
+        versions = quiz_clean.setdefault(row.quizName, {})
+        versions.setdefault(
+            quizzes.version(row.quizName, row.commitHash), 
+            quizzes.schema(row.quizName, row.commitHash))
     json.dump(quiz_clean, open('data/quiz-schemas.json', 'w'))
 
 

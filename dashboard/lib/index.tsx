@@ -18,10 +18,6 @@ import "../styles.scss";
 import "../index.html";
 
 declare global {
-  var QUESTION_SUMMARY: string;
-  var QUIZ_SUMMARY: string;
-  var QUIZ_SCHEMAS: string;
-
   interface Window {
       hljs: any;
   }
@@ -222,10 +218,7 @@ let QuestionInspector: React.FC<{ state: any; quizSchemas: any }> = observer(
     if (!state.selectedQuestion) return null;
     let r = state.selectedQuestion;
     let schemas = quizSchemas[r.quizName];
-    let hash = Object.keys(schemas).find(
-      (k) => schemas[k].version == r.version
-    )!;
-    let schema = schemas[hash].schema;
+    let schema = schemas[r.version]
     let question = schema.questions[r.question];
 
     let answers: { [hash: string]: { count: number; answer: any } } = {};
@@ -282,6 +275,8 @@ let QuestionInspector: React.FC<{ state: any; quizSchemas: any }> = observer(
   }
 );
 
+let ExplanationContext = React.createContext<any>({});
+
 let App = () => {
   let state = useLocalObservable(() => ({
     selectedQuestion: null,
@@ -294,6 +289,7 @@ let App = () => {
         "data/question-summary.json",
         "data/quiz-summary.json",
         "data/quiz-schemas.json",
+        "data/explanations.json",
       ];
       let pairs = await Promise.all(
         files.map(async (url) => {
@@ -313,7 +309,7 @@ let App = () => {
 
   if (data == null) return <div>Loading data...</div>;
 
-  return (
+  return (<ExplanationContext.Provider value={data["data/explanations.json"]}>
     <div>
       <h1>Rust Book Experiment Dashboard</h1>
       <div className="grids">
@@ -344,7 +340,7 @@ let App = () => {
         quizSchemas={data["data/quiz-schemas.json"]}
       />
     </div>
-  );
+  </ExplanationContext.Provider>);
 };
 
 let root = ReactDOM.createRoot(document.getElementById("root")!);

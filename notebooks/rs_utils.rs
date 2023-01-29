@@ -6,7 +6,7 @@
 // thread_local = "1.1"
 // itertools = "0.10"
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use itertools::Itertools;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
@@ -39,7 +39,9 @@ impl Quizzes {
 
         let schema = {
           let obj_spec = format!("{commit_hash}:quizzes/{name}.toml");
-          let obj = repo.revparse_single(&obj_spec)?;
+          let obj = repo
+            .revparse_single(&obj_spec)
+            .with_context(|| format!("Failed to parse objspec: {obj_spec}"))?;
           let blob = obj.peel_to_blob()?;
           String::from_utf8_lossy(blob.content()).parse::<toml::Value>()?
         };
@@ -102,7 +104,7 @@ impl Quizzes {
 impl Quizzes {
   #[new]
   fn py_new(py: Python, answers: Vec<(String, String)>) -> PyResult<Self> {
-    Self::build(py, answers).map_err(|e| PyException::new_err(e.to_string()))
+    Self::build(py, answers).map_err(|e| PyException::new_err(format!("{e:?}")))
   }
 
   fn schema(&self, py: Python, quiz_name: String, commit_hash: String) -> PyResult<PyObject> {

@@ -1,12 +1,20 @@
 import pandas as pd
 import json
+import sys
 from statsmodels.stats.proportion import proportion_confint
 
 from utils import load_latest_answers
 
 
 def main():
+    threshold = sys.argv[1] if len(sys.argv) > 1 else None
+
     answers, answers_flat, quizzes = load_latest_answers()
+    
+    if threshold:
+        answers = answers[answers.timestamp > threshold]
+        answers_flat = answers_flat[answers_flat.timestamp > threshold]
+
     def summarize(df, groups, metric, ci_estimator, extra):
         g = df.groupby(groups)
         def ci(df):
@@ -42,8 +50,9 @@ def main():
         lambda ser: proportion_confint(ser.sum(), len(ser)),
         ['answer'])
 
-    explanations = answers_flat[answers_flat.explanation.notnull()] \
-        .groupby(['quizName', 'version', 'question']) \
+    explanations = answers_flat[answers_flat.explanation.notnull()]
+    if len(explanations) > 0:
+        explanations = explanations.groupby(['quizName', 'version', 'question']) \
         .apply(lambda group: group.explanation.tolist()) \
         .rename("explanations") \
         .reset_index()

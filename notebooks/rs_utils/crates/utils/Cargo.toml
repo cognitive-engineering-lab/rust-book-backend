@@ -1,0 +1,31 @@
+[package]
+name = "utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pyo3 = {version = "0.19.0", features = ["anyhow", "chrono"]}
+pythonize = "0.19"
+rayon = {version = "1", default-features = false}
+git2 = {version = "0.15", default-features = false}
+anyhow = {version = "1", features = ["backtrace"]}
+toml = "0.5"
+itertools = "0.10"
+serde = {version = "1", features = ["derive"]}
+internment = {version = "0.7.1", features = ["serde"]}
+indicatif = {version = "0.17", features = ["rayon"]}
+proc-macro2 = "1.0.67"
+markdown = "1.0.0-alpha.14"
+sqlite = "0.31.1"
+flate2 = "1.0.27"
+serde_json = "1.0.107"
+arrayvec = { version = "0.7.4", features = ["serde"] }
+chrono = { version = "0.4.31", features = ["serde", "std", "alloc"], default-features = false }
+smallvec = { version = "1.11.1", features = ["serde"] }
+fxhash = "0.2.1"
+float-ord = "0.3.2"
+indexical = "0.3.0"
+env_logger = "0.10.0"
+log = "0.4.20"
+regex = "1.9.5"
+GSL = "6.0.0"
